@@ -17,11 +17,11 @@ def process( imageA):
 #    mask = cv2.inRange(hsv, lower_green, upper_green)
     mask = cv2.inRange(hsv, (min_hue, min_sat, 0), (max_hue, max_sat, 255))
     mask = 255-mask
-    filename="hsvmask.png"
+    filename="../data/hsvmask.png"
     cv2.imwrite(filename, mask)
     result = cv2.bitwise_and(255-imageA, 255-imageA, mask=mask)
     result=255-result
-    filename="hsvmasked.png"
+    filename="../data/hsvmasked.png"
     cv2.imwrite(filename, result)
     gray = cv2.cvtColor(imageA, cv2.COLOR_RGB2GRAY)
     sharpen_kernel = np.array([[0,-1,0], [-1,5,-1], [0,-1,0]])
@@ -47,13 +47,13 @@ def process( imageA):
     canny_color = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
     mask_color = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
     thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2RGB)
-    filename="thresh.png"
+    filename="../data/thresh.png"
     cv2.imwrite(filename, thresh)
-    filename="canny.png"
+    filename="../data/canny.png"
     cv2.imwrite(filename, canny_color)
-    filename="edges.png"
+    filename="../data/edges.png"
     cv2.imwrite(filename, thresh_edge)
-    filename="contours.png"
+    filename="../data/contours.png"
     cv2.imwrite(filename, contour)
     return {'gray': gray, 'thresh': thresh, 'thresh_edge': thresh_edge, 'canny': canny, 'edges': edges, 'contour': contour, 'mask': mask_color}
     
@@ -78,7 +78,7 @@ print(h_ratio, w_ratio)
 print(new_height, new_width)
 img=process(resized)
 
-cv2.imwrite("resized_b.png", resized)
+cv2.imwrite("../data/resized_b.png", resized)
 
 blob = cv2.dnn.blobFromImage(img['contour'], 1, (new_width, new_height),None, True, False) #(123.68, 116.78, 103.94), True, False
 model.setInput(blob)
@@ -94,7 +94,7 @@ print((geometry2).shape, (scores2).shape)
 geometry=geometry+geometry2
 scores=scores+scores2
 thresh_blurred = cv2.blur(img['canny'], (7, 7))
-cv2.imwrite("cthresh_b.png", thresh_blurred)
+cv2.imwrite("../data/cthresh_b.png", thresh_blurred)
 detected_circles = cv2.HoughCircles(thresh_blurred, cv2.HOUGH_GRADIENT, 2, 30, param1 = 293, param2 = 280, minRadius = 100, maxRadius = 0)
 if(not(detected_circles is None)): detected_circles = np.uint16(np.around(detected_circles))
 rectangles = [] 
@@ -143,7 +143,7 @@ if(not(detected_circles is None)):
         cv2.circle(img_copy_t, (a, b), r, (100, 0, 255), 2)
         cv2.circle(img_copy_t, (a, b), 2, (150, 0, 255), 3)
         center=(a, b)
-cv2.imwrite("circles.png", img_copy_t)
+cv2.imwrite("../data/circles.png", img_copy_t)
 angles=[]
 for (x1, y1, x2, y2) in rectangles:
     ro=[x1,y1,x2,y2]
@@ -173,6 +173,6 @@ for ([a1, b1, a2, b2], angle) in sorted_angles:
     prev=angle
 
 
-cv2.imwrite("eastdetected.png", img_copy)
+cv2.imwrite("../data/eastdetected.png", img_copy)
 print("W")
 

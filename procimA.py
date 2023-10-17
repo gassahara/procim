@@ -57,7 +57,7 @@ def process( imageA):
     cv2.imwrite(filename, contour)
     return {'gray': gray, 'thresh': thresh, 'thresh_edge': thresh_edge, 'canny': canny, 'edges': edges, 'contour': contour, 'mask': mask_color}
     
-imagename="carta2.png"
+imagename="../data/carta2.png"
 image = Image.open(imagename).convert("RGB") #requests.get(url, stream=True).raw).convert("RGB")
 imageo = cv2.imread(imagename)
 

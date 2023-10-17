@@ -1,0 +1,148 @@
+from imutils.object_detection import non_max_suppression
+from PIL import Image
+import cv2
+import numpy as np
+import easyocr
+import math
+import distinctipy
+
+def getrects( imager, rectangles):
+    imgs=[]
+    for r in rectangles:
+        width=r[2]-r[0]
+        height=r[3]-r[1]
+        x=r[0]
+        y=r[1]
+        rectX = int(x)
+        rectY = int(y)
+        rectWidth = int(width)
+        rectHeight = int(height)
+        croppedImage = imager[rectY:rectY + rectHeight, rectX:rectX + rectWidth]
+        stri="tempImage" + str(x)  + str(y) + str(width) + str(height) + ".png"
+        print (stri)
+        cv2.imwrite(stri, croppedImage)
+        imgs.append(croppedImage)
+    return imgs
+    
+def process( image):
+    gray = cv2.cvtColor(imageo, cv2.COLOR_RGB2GRAY)
+    sharpen_kernel = np.array([[1,1,1], [7,-7,-5], [-1,-1,-1]])
+    sharpen = cv2.filter2D(gray, -1, sharpen_kernel)
+    thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    image = cv2.cvtColor(thresh, cv2.COLOR_GRAY2RGB)
+    filename="thresh.png"
+    cv2.imwrite(filename, thresh)
+    return [('gray', gray), ('thresh', thresh), ('image', image)]
+    
+reader = easyocr.Reader(['es', 'en'],gpu = False) # load once only in memory.
+imagename="carta.png"
+image = Image.open(imagename).convert("RGB") #requests.get(url, stream=True).raw).convert("RGB")
+imageo = cv2.imread(imagename)
+
+model = cv2.dnn.readNet('../east//frozen_east_text_detection.pb')
+height, width, _ = imageo.shape
+new_height = (height//32)*32
+new_width = (width//32)*32
+h_ratio = height/new_height
+w_ratio = width/new_width
+print(h_ratio, w_ratio)
+print(new_height, new_width)
+blob = cv2.dnn.blobFromImage(imageo, 1, (new_width, new_height),(123.68, 116.78, 103.94), True, False)
+model.setInput(blob)
+print(model.getUnconnectedOutLayersNames())
+(geometry, scores) = model.forward(model.getUnconnectedOutLayersNames())
+print((geometry).shape, (scores).shape)
+gray = cv2.cvtColor(imageo, cv2.COLOR_RGB2GRAY)
+canny = cv2.Canny(gray,200,300)
+sharpen_kernel = np.array([[0,-1,0], [-1,7,-1], [0,-1,0]])
+sharpen = cv2.filter2D(canny, -1, sharpen_kernel)
+thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+cv2.imwrite("canny.png", thresh)
+horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25,1))
+horizontal_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,25))
+vertical_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
+lines = cv2.addWeighted(horizontal_lines, 0.5, vertical_lines, 0.5, 0.0)
+lines = cv2.bitwise_not(lines)
+result = cv2.bitwise_and(thresh, thresh, mask=lines)
+
+thresh_blurred = cv2.blur(result, (7, 7))
+cv2.imwrite("cthreash.png", thresh_blurred)
+detected_circles = cv2.HoughCircles(thresh_blurred, cv2.HOUGH_GRADIENT, 1.2, 30, param1 = 273, param2 = 250, minRadius = 100, maxRadius = 0)
+if(not(detected_circles is None)): detected_circles = np.uint16(np.around(detected_circles))
+rectangles = [] #list 1
+center=0
+confidence_score = [] #list 2
+for i in range(geometry.shape[2]): #iterate each pixel row by row to construct counding boxes. shape[2] pixel value = 96
+    for j in range(0, geometry.shape[3]):  #shape[3] pixel value =160
+        
+        if scores[0][0][i][j] < 0.07:  #if score of pixel is less than threshold then we don't consider the pixel and we continue
+            continue
+            #otherwise obtain bounding box coordinates as follows
+        bottom_x = int(j*4 + geometry[0][1][i][j])
+        bottom_y = int(i*4 + geometry[0][2][i][j])
+        top_x = int(j*4 - geometry[0][3][i][j])
+        top_y = int(i*4 - geometry[0][0][i][j])        
+        rectangles.append((top_x, top_y, bottom_x, bottom_y))
+        confidence_score.append(float(scores[0][0][i][j]))
+fin_boxes = non_max_suppression(np.array(rectangles), probs=confidence_score, overlapThresh=0.5)
+img_copy = imageo.copy()
+img_copy_t = imageo.copy()
+if(not(detected_circles is None)):
+    for pt in detected_circles[0, :]:
+        a, b, r = pt
+        print('a:', a, 'b:', b, 'r:', r)
+        cv2.circle(img_copy, (a, b), r, (100, 0, 255), 2)
+        cv2.circle(img_copy, (a, b), 1, (150, 0, 255), 3)
+        cv2.circle(img_copy_t, (a, b), r, (100, 0, 255), 2)
+        cv2.circle(img_copy_t, (a, b), 2, (150, 0, 255), 3)
+        center=(a, b)
+cv2.imwrite("circles.png", img_copy_t)
+rectangles=[]
+angles=[]
+for (x1, y1, x2, y2) in fin_boxes:
+    ro=[x1,y1,x2,y2]
+    x1 = int(x1 * w_ratio)
+    y1 = int(y1 * h_ratio)
+    x2 = int(x2 * w_ratio)
+    y2 = int(y2 * h_ratio)
+    rectangles.append([x1, y1, x2, y2])
+    cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0,255,0) , 2) #to draw rectangles on the image
+    centerr=[x1+((x2-x1)/2), y1+((y2-y1)/2)]
+    centerr=np.uint16(np.around(centerr))
+    cv2.circle(img_copy, centerr, 2, (50, 110, 225), 3)
+
+    delta_x = centerr[0] - center[0]
+    delta_y = centerr[1] - center[1]
+    angles.append([ro, round(math.atan2(delta_y, delta_x) * 180 / math.pi,2)])
+
+sorted_angles = sorted(angles, key=lambda x: x[1])
+print(sorted_angles)
+cl=1
+prev=sorted_angles[0][1]
+colors = distinctipy.get_colors(len(sorted_angles))
+for ([a1, b1, a2, b2], angle) in sorted_angles:
+    a1 = int(a1 * w_ratio)
+    b1 = int(b1 * h_ratio)
+    a2 = int(a2 * w_ratio)
+    b2 = int(b2 * h_ratio)
+    print (cl, angle, np.multiply(colors[cl], 255))
+    if(angle<prev-0.02 or angle>prev+0.02):
+        cl=cl+1
+    cv2.rectangle(img_copy, (a1, b1), (a2, b2), np.multiply(colors[cl], 255) , 1) #to draw rectangles on the image
+    cv2.putText(img_copy, str(angle), (int(a1+((a2-a1)/2)), int(b1+((b2-b1)/2))), cv2.FONT_HERSHEY_SIMPLEX, 0.35, np.multiply(colors[cl], 255), 1, cv2.LINE_AA)
+
+    prev=angle
+
+cv2.imwrite("eastdetected.png", img_copy)
+print("W")
+# sharp the edges or image.
+for b in process(imageo):
+    print (b[0])
+#    for c in getrects(b[1], rectangles):
+#        print (recognize(c))
+    
+
+print("Found {0} Faces!".format(len(faces)))
+print(faces[0])
+

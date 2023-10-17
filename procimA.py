@@ -16,32 +16,20 @@ def process( imageA):
     max_sat = 30
 #    mask = cv2.inRange(hsv, lower_green, upper_green)
     mask = cv2.inRange(hsv, (min_hue, min_sat, 0), (max_hue, max_sat, 255))
-    mask = 255-mask
+    #mask = 255-mask
     filename="../data/hsvmask.png"
     cv2.imwrite(filename, mask)
     result = cv2.bitwise_and(255-imageA, 255-imageA, mask=mask)
     result=255-result
     filename="../data/hsvmasked.png"
     cv2.imwrite(filename, result)
-    gray = cv2.cvtColor(imageA, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
     sharpen_kernel = np.array([[0,-1,0], [-1,5,-1], [0,-1,0]])
     edge_kernel = np.array([[-1, -1, -1], [-1,  8, -1], [-1, -1, -1]])
     sharpen = cv2.filter2D(gray, -1, sharpen_kernel)
     edges = cv2.filter2D(gray, -1, edge_kernel)
-    thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY_INV)[1]
-    i=10
-    contourB=thresh.copy()
-    contr=[]
-    colors = distinctipy.get_colors(200)
-    contour=result.copy()
-    while (i<200):
-        _, binary = cv2.threshold(contour, i, 255, cv2.THRESH_BINARY)
-        contours, hierarchy = cv2.findContours(binary, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-#        cv2.drawContours(contourB, contours, -1, (0, 0, 0), 2)
-        cv2.drawContours(contourB, contours, -1, colors[i], 1)
-        contr.append(contours)
-        i=i+1
-    thresh_edge = cv2.threshold(contourB, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY_INV)[1]
+    thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_OTSU)[1]
+    thresh_edge = cv2.threshold(thresh, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY_INV)[1]
     canny = cv2.Canny(thresh_edge,25,50)
     thresh_edge = cv2.cvtColor(thresh_edge, cv2.COLOR_GRAY2RGB)
     canny_color = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
@@ -53,9 +41,7 @@ def process( imageA):
     cv2.imwrite(filename, canny_color)
     filename="../data/edges.png"
     cv2.imwrite(filename, thresh_edge)
-    filename="../data/contours.png"
-    cv2.imwrite(filename, contour)
-    return {'gray': gray, 'thresh': thresh, 'thresh_edge': thresh_edge, 'canny': canny, 'edges': edges, 'contour': contour, 'mask': mask_color}
+    return {'gray': gray, 'thresh': thresh, 'thresh_edge': thresh_edge, 'canny': canny, 'edges': edges, 'mask': mask_color}
     
 imagename="../data/carta2.png"
 image = Image.open(imagename).convert("RGB") #requests.get(url, stream=True).raw).convert("RGB")
@@ -80,7 +66,7 @@ img=process(resized)
 
 cv2.imwrite("../data/resized_b.png", resized)
 
-blob = cv2.dnn.blobFromImage(img['contour'], 1, (new_width, new_height),None, True, False) #(123.68, 116.78, 103.94), True, False
+blob = cv2.dnn.blobFromImage(img['thresh'], 1, (new_width, new_height),None, True, False) #(123.68, 116.78, 103.94), True, False
 model.setInput(blob)
 print(model.getUnconnectedOutLayersNames())
 (geometry, scores) = model.forward(model.getUnconnectedOutLayersNames())
@@ -93,6 +79,15 @@ print(model.getUnconnectedOutLayersNames())
 print((geometry2).shape, (scores2).shape)
 geometry=geometry+geometry2
 scores=scores+scores2
+
+blob2 = cv2.dnn.blobFromImage(resized, 1, (new_width, new_height),None, True, False) #(123.68, 116.78, 103.94), True, False
+model.setInput(blob2)
+print(model.getUnconnectedOutLayersNames())
+(geometry2, scores2) = model.forward(model.getUnconnectedOutLayersNames())
+print((geometry2).shape, (scores2).shape)
+geometry=geometry+geometry2
+scores=scores+scores2
+
 thresh_blurred = cv2.blur(img['canny'], (7, 7))
 cv2.imwrite("../data/cthresh_b.png", thresh_blurred)
 detected_circles = cv2.HoughCircles(thresh_blurred, cv2.HOUGH_GRADIENT, 2, 30, param1 = 293, param2 = 280, minRadius = 100, maxRadius = 0)
@@ -114,7 +109,7 @@ for i in range(geometry.shape[2]):
 fin_boxes = non_max_suppression(np.array(rectangles), probs=confidence_score, overlapThresh=0.2)
 rectangles=fin_boxes.tolist();
 
-r_easy_ocr=reader.readtext(img['contour'])
+r_easy_ocr=reader.readtext(img['thresh'])
 for e in r_easy_ocr:
     print(e)
     x1=int(e[0][0][0])
@@ -124,6 +119,15 @@ for e in r_easy_ocr:
     rectangles.append((x1, y1, x2, y2))
 
 r_easy_ocr=reader.readtext(img['mask'])
+for e in r_easy_ocr:
+    print(e)
+    x1=int(e[0][0][0])
+    y1=int(e[0][0][1])
+    x2=int(e[0][2][0])
+    y2=int(e[0][3][1])
+    rectangles.append((x1, y1, x2, y2))
+
+r_easy_ocr=reader.readtext(resized)
 for e in r_easy_ocr:
     print(e)
     x1=int(e[0][0][0])

@@ -109,7 +109,7 @@ for i in range(geometry.shape[2]):
 fin_boxes = non_max_suppression(np.array(rectangles), probs=confidence_score, overlapThresh=0.2)
 rectangles=fin_boxes.tolist();
 
-r_easy_ocr=reader.readtext(img['thresh'])
+r_easy_ocr=reader.readtext(allowlist = '1234567890\'\",.', batch_size=2, rotation_info= [90, 180 ,270] , image = img['thresh'])
 for e in r_easy_ocr:
     print(e)
     x1=int(e[0][0][0])
@@ -118,7 +118,7 @@ for e in r_easy_ocr:
     y2=int(e[0][3][1])
     rectangles.append((x1, y1, x2, y2))
 
-r_easy_ocr=reader.readtext(img['mask'])
+r_easy_ocr=reader.readtext(allowlist = '1234567890\'\",.', batch_size=2, rotation_info= [90, 180 ,270] , image = img['mask'])
 for e in r_easy_ocr:
     print(e)
     x1=int(e[0][0][0])
@@ -127,7 +127,7 @@ for e in r_easy_ocr:
     y2=int(e[0][3][1])
     rectangles.append((x1, y1, x2, y2))
 
-r_easy_ocr=reader.readtext(resized)
+r_easy_ocr=reader.readtext(allowlist = '1234567890\'\",.', batch_size=2, rotation_info= [90, 180 ,270] , image = resized)
 for e in r_easy_ocr:
     print(e)
     x1=int(e[0][0][0])
